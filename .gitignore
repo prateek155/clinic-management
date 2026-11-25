@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+target/
+*.log
+service-account*.json
+firebase-adminsdk-*.json
+firebase-admin.json
