@@ -14,14 +14,15 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(name = "firebase.enabled", havingValue = "true")
 public class FirebaseAdminConfiguration {
     @Bean
-    FirebaseApp firebaseApp(@Value("${firebase.project-id}") String projectId) throws IOException {
+    FirebaseApp firebaseApp(@Value("${firebase.project-id}") String projectId,
+            @Value("${firebase.storage.bucket:}") String storageBucket) throws IOException {
         if (projectId.isBlank()) {
             throw new IllegalStateException("FIREBASE_PROJECT_ID is required when Firebase authentication is enabled");
         }
         return FirebaseApp.getApps().stream()
                 .filter(app -> app.getName().equals(FirebaseApp.DEFAULT_APP_NAME))
                 .findFirst()
-                .orElseGet(() -> initialize(projectId));
+                .orElseGet(() -> initialize(projectId, storageBucket));
     }
 
     @Bean
@@ -29,12 +30,18 @@ public class FirebaseAdminConfiguration {
         return FirebaseAuth.getInstance(firebaseApp);
     }
 
-    private FirebaseApp initialize(String projectId) {
+    @Bean
+    com.google.firebase.cloud.StorageClient firebaseStorageClient(FirebaseApp firebaseApp) {
+        return com.google.firebase.cloud.StorageClient.getInstance(firebaseApp);
+    }
+
+    private FirebaseApp initialize(String projectId, String storageBucket) {
         try {
-            return FirebaseApp.initializeApp(FirebaseOptions.builder()
+            FirebaseOptions.Builder options = FirebaseOptions.builder()
                     .setCredentials(GoogleCredentials.getApplicationDefault())
-                    .setProjectId(projectId)
-                    .build());
+                    .setProjectId(projectId);
+            if (storageBucket != null && !storageBucket.isBlank()) options.setStorageBucket(storageBucket.trim());
+            return FirebaseApp.initializeApp(options.build());
         } catch (IOException exception) {
             throw new IllegalStateException("Firebase Application Default Credentials are unavailable", exception);
         }

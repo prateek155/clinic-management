@@ -7,6 +7,10 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/clinic}
     username: ${DB_USERNAME:clinic}
     password: ${DB_PASSWORD:clinic_dev_only}
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 51MB
   flyway:
     enabled: true
   jpa:
@@ -35,6 +39,8 @@ springdoc:
 firebase:
   enabled: ${FIREBASE_ENABLED:false}
   project-id: ${FIREBASE_PROJECT_ID:}
+  storage:
+    bucket: ${FIREBASE_STORAGE_BUCKET:}
 
 app:
   cors:

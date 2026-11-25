@@ -1,90 +1,96 @@
 # Careflow Clinic Management System
 
-Phase 1 establishes the application foundation: React/Vite sign-in, Firebase-backed API authentication, patient account provisioning, optional doctor-owner bootstrap, PostgreSQL/Flyway, and role-protected workspace shells. The full relational schema is included now; scheduling, consultations, staff invitations, billing, storage, and notifications are roadmap work and are not exposed as working flows yet.
+Careflow is a React/Vite clinic portal backed by Spring Boot, Firebase Authentication, and PostgreSQL. Neon can host PostgreSQL, so a local PostgreSQL installation is optional. The app has patient, doctor, and clinic staff workspaces. Roles come from backend membership records; users cannot grant themselves doctor or staff access from the browser.
+
+## What is implemented
+
+- Patient account and profile editing, family profiles with clinic-specific booking consent, appointment booking, rescheduling, cancellation, and appointment history.
+- Doctor dashboard, patient directory and clinic-scoped records, medical history and allergy updates, appointment status management, recurring schedules, breaks, and one-day closures.
+- Consultation notes, vitals, follow-up details, draft and finalized prescriptions, and patient medical history views.
+- Private medical report uploads/downloads through Firebase Storage using temporary signed links.
+- Doctor-managed staff invitations, one-time invitation links, permission assignment and revocation, and staff queue/check-in screens.
+- Invoices, line items, payment recording, patient invoice views, and printable invoices.
+- In-app notifications and notification preferences.
+- Clinic and doctor profile, appointment booking/cancellation rules, and a clinic service catalogue.
+
+Email/SMS/WhatsApp notifications are preference fields only; an external sending provider is not connected. Payments are recorded by clinic staff; there is no payment gateway or card charging flow.
 
 ## Prerequisites
 
-- Java 21
-- Maven 3.6.3 or later
-- Node.js 20.19 or later and npm
-- A Firebase project with Email/Password and Google sign-in enabled
-- A Neon project/database, or Docker Compose if you prefer local PostgreSQL
+- Java 21 and Maven 3.6.3 or later for running the API outside Docker.
+- Node.js 20.19 or later and npm for the frontend.
+- A Firebase project with Email/Password and Google sign-in enabled.
+- A Neon PostgreSQL database, or Docker Compose if using local PostgreSQL.
 
-You do not need PostgreSQL installed locally when using Neon.
+## Environment setup
 
-## Configure environment variables
-
-Copy the root template and fill its backend values:
+Copy the templates and fill them locally. The root `.env` and Firebase Admin JSON are ignored by Git.
 
 ```powershell
 Set-Location 'C:\Users\ishu0\OneDrive\Desktop\clinic'
 Copy-Item .env.example .env
+Copy-Item clinic-management-frontend/.env.example clinic-management-frontend/.env
 notepad .env
+notepad clinic-management-frontend/.env
 ```
 
 ### Neon PostgreSQL
 
-In Neon Console, open **Connect**, select your branch, database, and role, then copy the connection details. Put the JDBC connection URL in `DB_URL`, and the database role and password in `DB_USERNAME` and `DB_PASSWORD`. Keep SSL enabled (`sslmode=require`). If Neon shows a `postgresql://user:password@host/database?...` URI instead of a JDBC URL, use `jdbc:postgresql://host/database?...` for `DB_URL` and put the user and password in their separate fields. Do not include the username or password in `DB_URL`.
+In Neon Console, open **Connect** and select the database, branch, and role. Set `DB_URL` to a JDBC URL such as `jdbc:postgresql://HOST/DB?sslmode=require`, and put the role and password separately in `DB_USERNAME` and `DB_PASSWORD`. Do not include the username/password inside `DB_URL`. Flyway applies the database migrations when the backend starts.
 
-The backend runs Flyway migrations on startup, so the database schema is created automatically. Neon’s connection details are available from its [Connect documentation](https://neon.com/docs/connect/connect-from-any-app).
+### Firebase Authentication and Admin SDK
 
-### Firebase
+1. Enable Email/Password and Google under Firebase Console → Authentication → Sign-in method. Add the deployed frontend domain to Authorized domains.
+2. Set `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, and `VITE_FIREBASE_APP_ID` in `clinic-management-frontend/.env` from Firebase Project settings → Your apps. `VITE_API_URL` is the API base URL ending in `/api/v1`.
+3. Create a Firebase Admin service-account JSON and keep it out of the repository. Set `FIREBASE_ENABLED=true`, `FIREBASE_PROJECT_ID`, and `GOOGLE_APPLICATION_CREDENTIALS` in the backend environment. The credentials variable must point to a file path; do not paste JSON into an environment variable.
+4. Medical report storage additionally needs a Firebase Storage bucket. Set `FIREBASE_STORAGE_BUCKET` to the bucket name without the `gs://` prefix and grant the Admin service account permission to create/read/delete objects in that bucket. Keep the bucket private; the API authorizes access and returns temporary links.
 
-1. In Firebase Console, create a Web App and enable **Email/Password** and **Google** under Authentication providers. Add `localhost` to authorized domains for local development.
-2. Copy `clinic-management-frontend/.env.example` to `clinic-management-frontend/.env`. Fill `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, and `VITE_FIREBASE_APP_ID` from Firebase Console → Project settings → General → Your apps → Web app. Keep `VITE_API_URL` as `http://localhost:8080/api/v1` for local development. These web settings are used by the browser and are not Firebase Admin credentials.
-3. For the backend, download a Firebase Admin service-account JSON and store it outside this repository, for example `C:\secure\firebase-admin.json`. Set `GOOGLE_APPLICATION_CREDENTIALS` in the root `.env` to that file path, and set `FIREBASE_PROJECT_ID` to the same project ID as the web app. Never paste the JSON contents into an `.env` file or commit the JSON.
-4. To create a doctor owner, first create that user's email/password or Google account in Firebase Authentication. Then enable the optional bootstrap settings in `.env` (`BOOTSTRAP_CLINIC_ENABLED=true`, `BOOTSTRAP_OWNER_EMAIL`, and optionally `BOOTSTRAP_CLINIC_NAME`). Leave bootstrap disabled for patient-only setup.
+### Create the doctor portal
+
+Create or use the doctor's Firebase account first. For the first clinic owner, configure the backend environment with `BOOTSTRAP_CLINIC_ENABLED=true`, `BOOTSTRAP_OWNER_EMAIL` set to that exact Firebase email, and `BOOTSTRAP_CLINIC_NAME`. Deploy/restart the backend once; its startup bootstrap creates the clinic and doctor profile for that account. Then change `BOOTSTRAP_CLINIC_ENABLED=false` and redeploy/restart. Sign out and sign in again. A user can have both patient and doctor access; the doctor workspace is selected automatically. Staff access is granted separately through **Doctor portal → Staff** and an invitation link.
 
 ### Environment variable locations
 
-| Values | File | Notes |
+| Variables | Location | Purpose |
 |---|---|---|
-| Neon JDBC URL, role, and password: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | Root `.env` | Use the Neon database role/password and require SSL. |
-| Firebase Admin: `FIREBASE_ENABLED`, `FIREBASE_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS` | Root `.env` | The last value is a path to the JSON key file, not the JSON contents. |
-| Server and local settings: `SERVER_PORT`, `OPENAPI_ENABLED`, `CORS_ALLOWED_ORIGINS` | Root `.env` | Defaults are suitable for local development. |
-| Optional doctor bootstrap: `BOOTSTRAP_CLINIC_ENABLED`, `BOOTSTRAP_OWNER_EMAIL`, `BOOTSTRAP_CLINIC_NAME` | Root `.env` | Only enable after creating the owner identity in Firebase. |
-| Firebase browser config and API URL: `VITE_FIREBASE_*`, `VITE_API_URL` | `clinic-management-frontend/.env` | Never put Neon credentials or Firebase Admin JSON/key in the frontend file. |
-| Optional local Docker PostgreSQL password: `POSTGRES_PASSWORD` | Root `.env` | Only needed if you choose Docker Compose instead of Neon. |
+| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | Backend environment / root `.env` | Neon PostgreSQL connection. |
+| `FIREBASE_ENABLED`, `FIREBASE_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS` | Backend environment / root `.env` | Firebase Admin authentication. The credentials value is a path. |
+| `FIREBASE_STORAGE_BUCKET` | Backend environment / root `.env` | Private report storage bucket. |
+| `BOOTSTRAP_CLINIC_ENABLED`, `BOOTSTRAP_OWNER_EMAIL`, `BOOTSTRAP_CLINIC_NAME` | Backend environment / root `.env` | One-time clinic owner bootstrap. Disable after it runs. |
+| `CORS_ALLOWED_ORIGINS`, `OPENAPI_ENABLED`, `SERVER_PORT` | Backend environment / root `.env` | API deployment and local settings. |
+| `VITE_API_URL`, `VITE_FIREBASE_*` | `clinic-management-frontend/.env` or frontend build environment | Browser Firebase config and API URL. Never put backend secrets here. |
 
-The backend imports the root `.env` when it is started from `clinic-management-backend`. Spring Boot supports loading extensionless `.env` files as properties using the `.properties` extension hint ([external configuration docs](https://docs.spring.io/spring-boot/reference/features/external-config.html)).
+## Run locally in PowerShell
 
-## Run locally (PowerShell)
+Use two terminals. Configure Neon and Firebase first. Java 21 and Maven must be installed to run the API this way.
 
-Use two PowerShell windows. Install Java 21, Maven 3.6.3+, and Node 20.19+ first. The commands below use Neon, so Docker and a local PostgreSQL installation are not required.
-
-**Window 1 — start the Spring API:**
+**Terminal 1 — API:**
 
 ```powershell
-Set-Location 'C:\Users\ishu0\OneDrive\Desktop\clinic'
-if (-not (Test-Path '.env')) { Copy-Item '.env.example' '.env' }
-notepad '.env'
-Set-Location 'clinic-management-backend'
+Set-Location 'C:\Users\ishu0\OneDrive\Desktop\clinic\clinic-management-backend'
 mvn spring-boot:run
 ```
 
-Fill in the root `.env` before starting the API. For patient-only setup, leave `BOOTSTRAP_CLINIC_ENABLED=false`.
-
-**Window 2 — start the React app:**
+**Terminal 2 — frontend:**
 
 ```powershell
-Set-Location 'C:\Users\ishu0\OneDrive\Desktop\clinic'
-if (-not (Test-Path 'clinic-management-frontend/.env')) { Copy-Item 'clinic-management-frontend/.env.example' 'clinic-management-frontend/.env' }
-notepad 'clinic-management-frontend/.env'
-Set-Location 'clinic-management-frontend'
+Set-Location 'C:\Users\ishu0\OneDrive\Desktop\clinic\clinic-management-frontend'
 npm install
 npm run dev
 ```
 
-The SPA runs at `http://localhost:5173`; the API runs at `http://localhost:8080`. The public liveness endpoint is `http://localhost:8080/api/v1/health`. In development, Swagger UI is at `http://localhost:8080/swagger-ui.html`; set `OPENAPI_ENABLED=false` in deployments that should not publish API docs.
+The app runs at `http://localhost:5173`; the API health endpoint is `http://localhost:8080/api/v1/health`. From the repository root, local PostgreSQL can optionally be started with `docker compose up -d postgres`.
 
-To use local PostgreSQL with Docker Compose instead, run `docker compose up -d postgres` from the workspace root and set `DB_URL=jdbc:postgresql://localhost:5432/clinic`, `DB_USERNAME=clinic`, and `DB_PASSWORD` to match the optional `POSTGRES_PASSWORD` value.
+## Deploy on Render
 
-## Phase 1 API
+Deploy the backend as a **Docker** service using `clinic-management-backend` as its root directory and its included `Dockerfile`. Add the backend variables from the table above in Render. Add the Admin JSON through Render **Secret Files** at `/etc/secrets/firebase-admin.json`, then set `GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/firebase-admin.json`. Set `CORS_ALLOWED_ORIGINS` to the exact frontend origin. The backend applies Flyway migrations on startup; V2 adds doctor schedule exceptions.
 
-- `POST /api/v1/auth/register` provisions a patient profile from the verified Firebase UID and email. The request accepts a display name only; it cannot set a role, UID, clinic, or permission.
-- `GET /api/v1/auth/me` returns the local user, roles, and active clinic memberships.
-- `GET /api/v1/health` returns `{ "status": "ok" }` without authentication.
+Deploy the frontend as a **Static Site** with root directory `clinic-management-frontend`, build command `npm ci && npm run build`, and publish directory `dist`. Set `VITE_API_URL` to `https://YOUR-BACKEND.onrender.com/api/v1` and set all four `VITE_FIREBASE_*` values in the frontend build environment. Add a rewrite from `/*` to `/index.html` with status `200` for React Router deep links. After changing build environment variables, trigger a new frontend deploy.
 
-## Scope and data handling
+Do not commit `.env`, Firebase Admin JSON, Render secret files, or Neon credentials. If any credential was accidentally committed or shared, rotate it in the provider console.
 
-This foundation is not yet a production-ready medical-record system. Before real patient data is stored, implement and review clinic-scoped endpoint authorization, staff permissions, private object storage, audit events, rate limits, consent and retention policies, database backup/restore, and operational monitoring. No medical report is uploaded or exposed in Phase 1.
+## Checks
+
+From `clinic-management-frontend`, `npm test` runs the frontend unit tests and `npm run build` creates the production static bundle. The backend targets Java 21; its Dockerfile builds the application using Maven and currently skips backend tests during image creation.
+
+Before using real patient data, have the deployment, authorization rules, backups/restore, and clinic policies reviewed for your operating requirements.

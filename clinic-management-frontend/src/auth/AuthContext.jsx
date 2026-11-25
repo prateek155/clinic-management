@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  reload,
+  sendEmailVerification,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -30,6 +32,14 @@ export function AuthProvider({ children }) {
       if (version === requestVersion.current) setSessionError(error.response?.data?.error || 'Could not load your clinic account.');
     } finally {
       if (version === requestVersion.current) setLoading(false);
+    }
+  }
+
+  async function refreshSession() {
+    if (auth?.currentUser) {
+      await reload(auth.currentUser);
+      setUser(auth.currentUser);
+      await loadSession(auth.currentUser);
     }
   }
 
@@ -71,7 +81,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = {
-    user, session, loading, sessionError, firebaseConfigured,
+    user, session, loading, sessionError, firebaseConfigured, refreshSession,
+    sendVerificationEmail: () => auth?.currentUser ? sendEmailVerification(auth.currentUser) : Promise.reject(new Error('Sign in first')),
     signIn: (email, password) => runAuthAction(() => signInWithEmailAndPassword(auth, email, password)),
     register: (fullName, email, password) => runAuthAction(
       () => createUserWithEmailAndPassword(auth, email, password), fullName),

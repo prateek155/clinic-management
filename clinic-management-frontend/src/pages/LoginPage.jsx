@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Activity, ArrowRight, Globe, ShieldCheck, Stethoscope } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { homeForRoles } from '../utils/roles.js';
 
@@ -18,10 +18,15 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
   const { session, sessionError, signIn, register, signInWithGoogle, firebaseConfigured } = useAuth();
   const { register: field, handleSubmit, setError: setFieldError, formState: { errors } } = useForm({ resolver: zodResolver(schema), defaultValues: { fullName: '', email: '', password: '' } });
 
-  useEffect(() => { if (session) navigate(homeForRoles(session.roles), { replace: true }); }, [session, navigate]);
+  useEffect(() => {
+    if (!session) return;
+    const returnTo = new URLSearchParams(location.search).get('returnTo');
+    navigate(returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : homeForRoles(session.roles), { replace: true });
+  }, [session, navigate, location.search]);
 
   async function submit(values) {
     setBusy(true); setError('');
