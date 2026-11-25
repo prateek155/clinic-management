@@ -1,9 +1,10 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 COPY pom.xml .
+COPY .mvn/settings.xml .mvn/settings.xml
 COPY src ./src
 RUN for attempt in 1 2 3; do \
-      if mvn -B -DskipTests package; then exit 0; fi; \
+      if mvn -s .mvn/settings.xml -B -DskipTests package; then exit 0; fi; \
       if [ "$attempt" -eq 3 ]; then exit 1; fi; \
       sleep $((attempt * 15)); \
     done
