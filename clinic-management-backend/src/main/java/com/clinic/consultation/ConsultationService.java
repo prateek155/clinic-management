@@ -2,8 +2,6 @@ package com.clinic.consultation;
 
 import static com.clinic.consultation.ConsultationDtos.*;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.clinic.security.FirebasePrincipal;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -16,16 +14,18 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public class ConsultationService {
     private static final Set<String> FOOD_INSTRUCTIONS = Set.of("BEFORE_FOOD", "AFTER_FOOD", "WITH_FOOD", "ANYTIME");
     private final JdbcTemplate jdbc;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
 
-    public ConsultationService(JdbcTemplate jdbc, ObjectMapper objectMapper) {
+    public ConsultationService(JdbcTemplate jdbc, JsonMapper jsonMapper) {
         this.jdbc = jdbc;
-        this.objectMapper = objectMapper;
+        this.jsonMapper = jsonMapper;
     }
 
     @Transactional
@@ -417,10 +417,10 @@ public class ConsultationService {
                 rs.getString("amended_contents"), rs.getObject("created_at", OffsetDateTime.class)), prescriptionId);
         return amendments.stream().map(item -> {
             try {
-                PrescriptionContents contents = objectMapper.readValue(item.contents(), PrescriptionContents.class);
+                PrescriptionContents contents = jsonMapper.readValue(item.contents(), PrescriptionContents.class);
                 return new PrescriptionAmendmentDto(item.id(), item.reason(), item.createdAt(),
                         contents.instructions(), contents.items());
-            } catch (JsonProcessingException exception) {
+            } catch (JacksonException exception) {
                 throw new IllegalStateException("Stored prescription amendment is invalid", exception);
             }
         }).toList();
@@ -434,8 +434,8 @@ public class ConsultationService {
     }
 
     private String json(PrescriptionContents contents) {
-        try { return objectMapper.writeValueAsString(contents); }
-        catch (JsonProcessingException exception) { throw new IllegalStateException("Could not record prescription amendment", exception); }
+        try { return jsonMapper.writeValueAsString(contents); }
+        catch (JacksonException exception) { throw new IllegalStateException("Could not record prescription amendment", exception); }
     }
 
     private List<PrescriptionItemDto> prescriptionItems(UUID prescriptionId) {
